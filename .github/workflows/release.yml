@@ -47,9 +47,12 @@ jobs:
           {
             echo "> $(git tag -l --format='%(contents:subject)' "$TAG")"
             echo
-            # 去掉 Co-Authored-By 尾注；<feature> 等分组在 Markdown 里会被当成 HTML 吞掉，转成标题
+            # 去掉 Co-Authored-By 尾注；<feature> 等分组在 Markdown 里会被当成 HTML 吞掉，转成标题；
+            # 其余每行转成列表项，避免多行被 Markdown 拼成一段
             git log -1 --format=%b "$TAG^{commit}" \
-              | sed -e '/^[Cc]o-[Aa]uthored-[Bb]y:/d' -e 's/^<\([a-z]*\)>$/### \1/'
+              | sed -e '/^[Cc]o-[Aa]uthored-[Bb]y:/d' \
+                    -e 's/^<\([a-z]*\)>$/### \1/' \
+                    -e '/^### /!s/^\(..*\)$/- \1/'
           } > notes.md
           cat notes.md
 
