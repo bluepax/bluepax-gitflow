@@ -70,5 +70,5 @@ jobs:
       - name: Upload flow document
         run: |
           mkdir -p dist
-          git show "$TAG^{commit}:README.md" > "dist/bluepax gitflow.md"
-          gh release upload "$TAG" "dist/bluepax gitflow.md" --clobber
+          git show "$TAG^{commit}:README.md" > "dist/bluepax-gitflow.md"
+          gh release upload "$TAG" "dist/bluepax-gitflow.md" --clobber
