@@ -1,0 +1,64 @@
+name: release
+
+# 推送版本标签时自动创建 GitHub Release；也可手动为已有标签补发
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release, e.g. v1.0.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # checkout 拉下的标签可能是轻量标签，重新拉取以保留附注与签名
+      - name: Fetch annotated tags
+        run: git fetch --force --tags origin
+
+      - name: Check tag
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ && ! "$TAG" =~ ^v[0-9]+\.0\.0-beta\.[0-9]+$ ]]; then
+            echo "::error::$TAG is not vX.Y.Z or vX.0.0-beta.N"; exit 1
+          fi
+          if [ "$(git cat-file -t "$TAG")" != tag ]; then
+            echo "::error::$TAG is not an annotated tag"; exit 1
+          fi
+          if ! git merge-base --is-ancestor "$TAG^{commit}" origin/main; then
+            echo "::error::$TAG is not on main"; exit 1
+          fi
+
+      - name: Build release notes
+        run: |
+          # 标题取 main 版本提交的首行，如 swift(v1.0.0): release Bluepax Flow 1.0.0
+          echo "TITLE=$(git log -1 --format=%s "$TAG^{commit}")" >> "$GITHUB_ENV"
+          {
+            echo "> $(git tag -l --format='%(contents:subject)' "$TAG")"
+            echo
+            # 去掉 Co-Authored-By 尾注；<feature> 等分组在 Markdown 里会被当成 HTML 吞掉，转成标题
+            git log -1 --format=%b "$TAG^{commit}" \
+              | sed -e '/^[Cc]o-[Aa]uthored-[Bb]y:/d' -e 's/^<\([a-z]*\)>$/### \1/'
+          } > notes.md
+          cat notes.md
+
+      - name: Publish release
+        run: |
+          pre=false
+          [[ "$TAG" == *-beta.* ]] && pre=true
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TITLE" --notes-file notes.md --prerelease="$pre"
+          else
+            gh release create "$TAG" --verify-tag --title "$TITLE" --notes-file notes.md --prerelease="$pre"
+          fi
