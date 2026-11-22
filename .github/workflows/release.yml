@@ -65,3 +65,10 @@ jobs:
           else
             gh release create "$TAG" --verify-tag --title "$TITLE" --notes-file notes.md --prerelease="$pre"
           fi
+
+      # 附上该版本的 README.md 作为规范文件；取标签提交里的版本，手动补发时也不会拿到 dev 上的
+      - name: Upload flow document
+        run: |
+          mkdir -p dist
+          git show "$TAG^{commit}:README.md" > "dist/bluepax-gitflow.md"
+          gh release upload "$TAG" "dist/bluepax-gitflow.md" --clobber
